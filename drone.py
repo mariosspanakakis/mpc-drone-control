@@ -3,6 +3,9 @@ from math import sin, cos
 
 
 class Drone:
+    """
+    Nonlinear drone model for simulation purposes.
+    """
 
     def __init__(self, constants: dict, initial_state: np.ndarray, Ts: float):
         # physical constants
@@ -32,7 +35,7 @@ class Drone:
         self.z[4] += self.z[5] * self.Ts
         self.z[5] += 1./self.J * thrust_dif * self.L * self.Ts
 
-    # discretize the system and return the state space representation
+    # discretize the system and return the linearized state space representation
     def linearize(self):
         # continuous state space representation
         self.A = np.array([
@@ -60,6 +63,9 @@ class Drone:
 
 
 class DroneLinear:
+    """
+    Linear drone model, can be added to the simulation in order to evaluate the model accuracy.
+    """
 
     def __init__(self, constants: dict, initial_state: np.ndarray, Ts: float):
         # physical constants
