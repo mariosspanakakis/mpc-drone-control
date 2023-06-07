@@ -2,6 +2,7 @@ import numpy as np
 import math
 from copy import copy
 import matplotlib.pyplot as plt
+import yaml
 
 from drone import Drone
 from planner import LinearTrajectoryPlanner
@@ -9,16 +10,19 @@ from controller import LinearQuadraticMPC
 from visualizer import visualize_drone, move_drone
 
 
+with open('parameters.yaml', 'r') as file:
+    params = yaml.safe_load(file)
+
 # prediction horizon and sample time
-N = 50
-Ts = 0.1
+N = params['N']
+Ts = params['Ts']
 
 drone_constants = {
-    'm': 2.4,           # mass
-    'L': 0.2,           # rotor distance from center of mass
-    'J': 1.,            # moment of inertia
-    'c': 10.,           # thrust constant
-    'g': 9.81           # gravitational constant
+    'm': params['m'],           # mass
+    'L': params['L'],           # rotor distance from center of mass
+    'J': params['J'],           # moment of inertia
+    'c': params['c'],           # thrust constant
+    'g': params['g']            # gravitational constant
 }
 
 initial_state = np.array([
@@ -69,8 +73,8 @@ umax = np.array([1., 1.]) - drone.u_OP
               'q_u': 4.386436533929654}"""
 
 # define weight matrices
-Qx = np.diag([10, 12., 4., 12., 32., 400.])
-Qu = np.diag([1., 1.])
+Qx = np.diag([params['qx'], params['qy'], params['qvx'], params['qvy'], params['qtheta'], params['qdtheta']])
+Qu = np.diag([params['qu'], params['qu']])
 #Qx = np.diag([opt_params['q_x'], opt_params['q_xy_dot'], opt_params['q_y'], opt_params['q_xy_dot'], opt_params['q_theta'], opt_params['q_theta_dot']])
 #Qu = np.diag([opt_params['q_u'], opt_params['q_u']])
 Qn = Qx
