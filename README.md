@@ -14,4 +14,4 @@ The exemplary system is a two-dimensional simulation of a quadcopter. The inputs
 
 On running the simulation ```main.py```, a live plot is opened that displays the real-time drone behaviour. By clicking into the plot area, the user can alter the drone's setpoint. The drone will transition to the newly set position by following a live-generated trajectory that accounts for acceleration and deceleration behaviour. The reference path over the prediction horizon is visualized by blue dots.
 
-![Interactive Simulation](images/simulation.PNG)
+![Sinusoidal Trajectory Generation](images/mpc_simulation.PNG)
