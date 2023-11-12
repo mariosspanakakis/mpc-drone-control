@@ -28,7 +28,7 @@ drone_constants = {
 initial_state = np.array([
     0.,                 # x
     0.,                 # x_dot
-    4.,                 # y
+    2.,                 # y
     0.,                 # y_dot
     0.,                 # theta
     0.                  # theta_dot
@@ -89,9 +89,12 @@ planner = LinearTrajectoryPlanner(N=N, Ts=Ts, initial_state=initial_state)
 
 # visualization
 fig, ax = plt.subplots()
+fig.set_size_inches(6, 4.5)
 ax.set_aspect('equal')
 ax.set_xlim([-10, 10])
-ax.set_ylim([-1, 20])
+ax.set_ylim([-1, 10])
+ax.set_xlabel('x in m')
+ax.set_ylabel('y in m')
 ax.plot([-50, 50], [0, 0], 'black')
 # make plot interactive
 plt.ion()
@@ -116,6 +119,7 @@ def on_close(event):
     quit()
 fig.canvas.mpl_connect('close_event', on_close)
 
+i = 0
 # animation cycle
 while True:
     # get current drone position
@@ -138,4 +142,8 @@ while True:
     # update the drone visualization
     move_drone(drone=drone_rect, x=drone.z[0], y=drone.z[2], theta=drone.z[4])
 
+    if i % 10 == 0:
+        visualize_drone(x=drone.z[0], y=drone.z[2], theta=drone.z[4], ax=ax, color='grey')
+
     plt.pause(0.001)
+    i += 1
