@@ -93,12 +93,14 @@ class LinearTrajectoryPlanner:
 
         # augment the (until now purely in xy-coordinates) system state to be 6D and include velocity
         for idx, state in enumerate(trajectory):
-            trajectory[idx] = np.array([xy_trajectory[idx, 0] * np.sin(np.pi*idx/trajectory.shape[0]),  # add sine wave to make the trajectory more interesting
-                                        (xy_trajectory[idx, 0] - xy_trajectory[idx-1, 0])/self.Ts,
-                                        xy_trajectory[idx, 1],
-                                        (xy_trajectory[idx, 1] - xy_trajectory[idx-1, 1])/self.Ts,
-                                        0.,
-                                        0.])
+            trajectory[idx] = np.array([
+                xy_trajectory[idx, 0], #* np.sin(np.pi*idx/trajectory.shape[0])  # add sine wave to make the trajectory more interesting
+                (xy_trajectory[idx, 0] - xy_trajectory[idx-1, 0])/self.Ts,
+                xy_trajectory[idx, 1],
+                (xy_trajectory[idx, 1] - xy_trajectory[idx-1, 1])/self.Ts,
+                0.,
+                0.
+            ])
 
         self.static_trajectory = trajectory
         self.len_static_trajectory = trajectory.shape[0]
@@ -115,8 +117,8 @@ class LinearTrajectoryPlanner:
         # passing over the given trajectory
         if self.traj_idx + self.N + 1 < self.len_static_trajectory:
             self.partial_trajectory = self.static_trajectory[self.traj_idx:self.traj_idx+self.N+1, :]
+        # before having reached the end
         else:
-            # before having reached the end
             if self.traj_idx < self.len_static_trajectory:
                 self.partial_trajectory = np.vstack((self.static_trajectory[self.traj_idx:, :],
                                                      np.tile(self.static_trajectory[-1, :],

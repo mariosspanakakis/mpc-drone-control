@@ -6,7 +6,7 @@ Ts: 0.1
 m: 2.4
 L: 0.2
 J: 1.0
-c: 10.0
+c: 100.0
 g: 9.81
 
 # weight matrices
