@@ -5,10 +5,9 @@ import matplotlib.pyplot as plt
 import yaml
 
 from drone import Drone
-from planner import LinearTrajectoryPlanner
+from planner import LinearTrajectoryPlanner, RRTPlanner
 from controller import LinearQuadraticMPC
-from visualizer import visualize_drone, move_drone
-
+from visualizer import Visualizer
 
 with open('parameters.yaml', 'r') as file:
     params = yaml.safe_load(file)
@@ -68,53 +67,30 @@ Qx = np.diag([params['qx'], params['qy'], params['qvx'], params['qvy'], params['
 Qu = np.diag([params['qu'], params['qu']])
 Qn = Qx
 
-# generate linear MPC controller
+# set up linear MPC controller
 K = LinearQuadraticMPC(
     Ad=Ad, Bd=Bd, N=N,
     xmin=xmin, xmax=xmax, umin=umin, umax=umax,
     Qx=Qx, Qu=Qu, Qn=Qn, info=False
 )
 
-# trajectory planner
+# set up trajectory planner
 planner = LinearTrajectoryPlanner(N=N, Ts=Ts, initial_state=initial_state)
 
-# visualization
-fig, ax = plt.subplots()
-fig.set_size_inches(6, 4.5)
-ax.set_aspect('equal')
-ax.set_xlim([-10, 10])
-ax.set_ylim([-1, 10])
-ax.set_xlabel('x in m')
-ax.set_ylabel('y in m')
-ax.plot([-50, 50], [0, 0], 'black')
-# make plot interactive
-plt.ion()
-# generate a rectangle visualizing the drone
-drone_rect = visualize_drone(x=drone.z[0], y=drone.z[2], theta=drone.z[4], ax=ax, color='red')
-# prepare a scatter plot object for path visualization
-path_scatter = ax.scatter(0, 0, marker='.', c='blue', s=2)
-
-plt.show()
+# set up visualization and plotting module
+visualizer = Visualizer()
 
 # assign user click coordinates as new goal for the drone
-def on_click(event):
-    if event.inaxes:
-        planner.calculate_trajectory(
-            P=np.array([drone.z[0], drone.z[2]]),
-            Q=np.array([event.xdata, event.ydata]),
-            v_max=4.,
-            a=1.
-        )
-    #K.update_weight_matrices(Qx=Qx, Qu=Qu, Qn=Qn)
-plt.connect('button_press_event', on_click)
+def update_setpoint(x, y):
+    planner.calculate_trajectory(
+        P=np.array([drone.z[0], drone.z[2]]),
+        Q=np.array([x, y]),
+        v_max=4.,
+        a=1.
+    )
 
-# stop program execution when window is closed
-def on_close(event):
-    quit()
-fig.canvas.mpl_connect('close_event', on_close)
+visualizer.set_click_handler(update_setpoint)
 
-# animation cycle
-#i = 0
 while True:
     # get current drone position
     xy_act = (drone.z[0], drone.z[2])
@@ -130,14 +106,14 @@ while True:
     drone.step(u=u)
 
     # update path data
-    path_scatter.set_offsets(np.c_[planner.partial_trajectory[:,0], planner.partial_trajectory[:,2]])
-    fig.canvas.draw_idle()
+    visualizer.update_local_trajectory(
+        points=np.c_[
+            planner.partial_trajectory[:,0],
+            planner.partial_trajectory[:,2]
+        ]
+    )
     
     # update the drone visualization
-    move_drone(drone=drone_rect, x=drone.z[0], y=drone.z[2], theta=drone.z[4])
-
-    #if i % 10 == 0:
-    #    visualize_drone(x=drone.z[0], y=drone.z[2], theta=drone.z[4], ax=ax, color='grey')
+    visualizer.update_drone(x=drone.z[0], y=drone.z[2], theta=drone.z[4])
 
     plt.pause(0.001)
-    #i += 1
