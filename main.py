@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import yaml
 
 from drone import Drone
-from planner import LinearTrajectoryPlanner, RRTPlanner
+from planner import TrajectoryPlanner
 from controller import LinearQuadraticMPC
 from visualizer import Visualizer
 
@@ -75,43 +75,35 @@ K = LinearQuadraticMPC(
 )
 
 # set up trajectory planner
-planner = LinearTrajectoryPlanner(N=N, Ts=Ts, initial_state=initial_state)
+planner = TrajectoryPlanner()
 
 # set up visualization and plotting module
 visualizer = Visualizer()
 
 # assign user click coordinates as new goal for the drone
 def update_setpoint(x, y):
-    planner.calculate_trajectory(
-        P=np.array([drone.z[0], drone.z[2]]),
-        Q=np.array([x, y]),
-        v_max=4.,
-        a=1.
-    )
-
+    # global trajectory start and end point
+    P = np.array([drone.z[0], drone.z[2]])
+    Q = np.array([x, y])
+    # plan updated global trajectory
+    planner.update_global_trajectory(P=P, Q=Q)
 visualizer.set_click_handler(update_setpoint)
 
+# main simulation loop
 while True:
-    # get current drone position
-    xy_act = (drone.z[0], drone.z[2])
 
-    # extract the relevant part of the static trajectory
-    planner.extract_partial_trajectory()
-    partial_trajectory = planner.partial_trajectory
+    # plan local trajectory
+    planner.update_local_trajectory(x=drone.z[0], y=drone.z[2], N=N+1, Ts=Ts)
 
     # get the optimal control input
-    u = K.solve(x0=drone.z, trajectory=partial_trajectory) + drone.u_OP
+    u = K.solve(x0=drone.z, trajectory=planner.local_trajectory) + drone.u_OP
 
     # apply the control input
     drone.step(u=u)
 
     # update path data
-    visualizer.update_local_trajectory(
-        points=np.c_[
-            planner.partial_trajectory[:,0],
-            planner.partial_trajectory[:,2]
-        ]
-    )
+    visualizer.update_global_trajectory(points=planner.global_trajectory)
+    visualizer.update_local_trajectory(points=planner.local_xy_trajectory)
     
     # update the drone visualization
     visualizer.update_drone(x=drone.z[0], y=drone.z[2], theta=drone.z[4])

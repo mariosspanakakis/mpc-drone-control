@@ -1,127 +1,111 @@
 import numpy as np
+from scipy.interpolate import CubicSpline
+
+from rrt import RRT
 
 
-class LinearTrajectoryPlanner:
-    def __init__(self, N: int, Ts: float, initial_state: np.ndarray):
-        """
-        Trajectory planner to generate a simple trajectory connecting
-        two points by a line.
-        
-        Arguments:
-        -----
-        N             : int
-                        prediction horizon, equal to the MPCs horizon
-        Ts            : float
-                        sampling time, equal to the MPCs sampling time
-        initial_state : 1D array-like (nx)
-                        initial state of the controlled system
-        """
-        self.N = N
-        self.Ts = Ts
-        
-        self.static_trajectory = np.ones((1, 6)) * initial_state
-        self.len_static_trajectory = 1
-        self.traj_idx = 0
-    
-    def calculate_trajectory(self, P, Q, v_max, a):
-        """
-        Calculate a linear trajectory connecting points P and Q. Accelerate and 
-        decelerate the motion in accordance to the given parameters.
-        
-        Arguments:
-        -----
-        P             : 1D array-like (nx)
-                        starting point
-        Q             : 1D array-like (nx)
-                        goal point
-        v_max         : float
-                        maximum allowed velocity on the trajectory
-        a             : float
-                        acceleration and deceleration
-        """
+class TrajectoryPlanner:
 
-        # total distance to travel
-        d_tot = np.sqrt(sum((Q - P)**2))
-        # travel direction
-        dir = (Q - P) / d_tot
+    def __init__(self):
+        self.stepsize = 1
+        self.update_global_trajectory(P=np.array([0, 2]), Q=np.array([0, 2]))
 
-        # acceleration phase duration
-        t_acc = v_max/a
-        # distance travelled during acceleration/deceleration
-        d_acc = 0.5 * a * t_acc**2
+    def update_global_trajectory(self, P: np.ndarray, Q: np.ndarray):
 
-        # if the maximum velocity is reachable:
-        if d_acc < d_tot / 2:
-            # distance travelled at constant speed
-            d_const = d_tot - 2 * d_acc
-            # time at maximum speed
-            t_const = d_const / v_max
-            # total time travelled
-            t_tot = t_const + 2 * t_acc
+        # RRT path planning
+        self.rrt = RRT(
+            P,
+            Q,
+            map_lims=np.array([[-10, 10], [0, 10]]),
+            step_size=0.5,
+            max_iter=1000
+        )
+        self.global_trajectory = self.rrt.plan()
 
-            time = np.linspace(0, t_tot, int(t_tot/self.Ts))
-            xy_trajectory = np.zeros((int(t_tot/self.Ts), 2))
+        """dist = np.linalg.norm(P - Q)
+        if (dist > 0):
+            # linear path planning
+            #num = int(dist / self.stepsize)
+            #self.global_trajectory = np.linspace(start=P, stop=Q, num=num)
 
-            for idx, t in enumerate(time):
-                # acceleration phase
-                if t < t_acc:
-                    xy_trajectory[idx] = P + 0.5 * a * t**2 * dir
-                # constant speed phase
-                elif t > t_acc and t < t_const + t_acc:
-                    xy_trajectory[idx] = xy_trajectory[idx-1] + v_max * self.Ts * dir
-                # deceleration phase
-                else:
-                    xy_trajectory[idx] = Q - 0.5 * a * (t_tot - t)**2 * dir
-
-        # if the maximum velocity is not reachable:
         else:
-            # total travelling time
-            t_tot = 2 * np.sqrt((2 * d_tot)/a)
+            self.global_trajectory = np.array([[0, 2]])"""
 
-            time = np.linspace(0, t_tot, int(t_tot/self.Ts))
-            xy_trajectory = np.zeros((int(t_tot/self.Ts), 2))
+    # get an N-samples long local trajectory
+    def update_local_trajectory(self, x: float, y: float, N: int, Ts: float):
 
-            for idx, t in enumerate(time):
-                # acceleration phase
-                if t < t_tot/2:
-                    xy_trajectory[idx] = P + 0.5 * a * t**2 * dir/2
-                # deceleration phase
-                else:
-                    xy_trajectory[idx] = Q - 0.5 * a * (t_tot - t)**2 * dir/2
+        # find closest point of the global trajectory
+        dists = np.linalg.norm(np.array([x, y]) - self.global_trajectory, axis=1)
+        closest_idx = np.argmin(dists)
 
-        trajectory = np.zeros((int(t_tot/self.Ts), 6))
+        # add current position to upcoming global trajectory
+        points = np.vstack((np.array([x, y]), self.global_trajectory[closest_idx:]))
 
-        # augment the (until now purely in xy-coordinates) system state to be 6D and include velocity
-        for idx, state in enumerate(trajectory):
-            trajectory[idx] = np.array([
-                xy_trajectory[idx, 0], #* np.sin(np.pi*idx/trajectory.shape[0])  # add sine wave to make the trajectory more interesting
-                (xy_trajectory[idx, 0] - xy_trajectory[idx-1, 0])/self.Ts,
-                xy_trajectory[idx, 1],
-                (xy_trajectory[idx, 1] - xy_trajectory[idx-1, 1])/self.Ts,
-                0.,
-                0.
-            ])
+        # define coordinates along the splines
+        k = np.linspace(0., 1., len(points))
 
-        self.static_trajectory = trajectory
-        self.len_static_trajectory = trajectory.shape[0]
-        self.traj_idx = 0
+        # interpolate the global trajectory using cubic splines
+        xspline = CubicSpline(x=k, y=points[:,0])
+        yspline = CubicSpline(x=k, y=points[:,1])
 
-        return trajectory
+        # obtain the spline's total length
+        spline_length = self.__get_spline_length(xspline, yspline)
 
-    def extract_partial_trajectory(self):
-        """
-        Extracts from the system trajectory the upcoming part, which is an N-samples
-        long snippet of it. If the trajectory has come to its end, the end state is
-        appended to stabilize the system in it.        
-        """
-        # passing over the given trajectory
-        if self.traj_idx + self.N + 1 < self.len_static_trajectory:
-            self.partial_trajectory = self.static_trajectory[self.traj_idx:self.traj_idx+self.N+1, :]
-        # before having reached the end
-        else:
-            if self.traj_idx < self.len_static_trajectory:
-                self.partial_trajectory = np.vstack((self.static_trajectory[self.traj_idx:, :],
-                                                     np.tile(self.static_trajectory[-1, :],
-                                                             (self.traj_idx + self.N + 1 - self.len_static_trajectory, 1))))
+        # obtain the curvature spline
+        curvature_spline = self.__get_spline_curvature(xspline, yspline)
+
+        # integrate the velocities along the spline to calculate distance per time
+        locations = np.array([0.0])
+        for _ in range(N - 1):
+            v = self.__get_velocity_at_location(curvature_spline, x=locations[-1]/spline_length)
+            next_location = min(1.0, (locations[-1] + v * Ts / spline_length))
+            locations = np.append(locations, next_location)
+
+        # calculate the resulting local trajectory in x and y
+        self.local_xy_trajectory = np.column_stack((xspline(locations), yspline(locations)))
+
+        # augment the (until now purely in xy coordinates) local trajectory
+        self.local_trajectory = np.column_stack((
+            self.local_xy_trajectory[:,0],
+            np.diff(self.local_xy_trajectory[:,0], append=self.local_xy_trajectory[-1,0]) / Ts,
+            self.local_xy_trajectory[:,1],
+            np.diff(self.local_xy_trajectory[:,1], append=self.local_xy_trajectory[-1,1]) / Ts,
+            np.zeros(N),
+            np.zeros(N)
+        ))
+
+    def __get_velocity_at_location(self, curvature_spline: CubicSpline, x: float) -> float:
+        vel = 2.0 * np.exp(- curvature_spline(x)**2 / (2 * 500**2))
+        return vel
+
+    def __get_spline_curvature(self, xspline: CubicSpline, yspline: CubicSpline) -> CubicSpline:
         
-        self.traj_idx += 1
+        t = np.linspace(0., 1., 1000)
+
+        # first derivatives
+        dx_dt = xspline(t, 1)
+        dy_dt = yspline(t, 1)
+
+        # second derivatives
+        d2x_dt2 = xspline(t, 2)
+        d2y_dt2 = yspline(t, 2)
+
+        # curvature profile
+        curvature = np.abs(dx_dt * d2y_dt2 - dy_dt * d2x_dt2) / (dx_dt**2 + dy_dt**2)**(3/2)
+        curvature_spline = CubicSpline(x=t, y=curvature)
+
+        return curvature_spline
+
+    def __get_spline_length(self, xspline: CubicSpline, yspline: CubicSpline) -> float:
+        # evaluate the given spline at locations along its length
+        t = np.linspace(0., 1., 100)
+        points = np.column_stack((xspline(t), yspline(t)))
+
+        # calculate the Euclidean distances between each pair of points
+        diffs = np.diff(points, axis=0)
+        dists = np.linalg.norm(diffs, axis=1)
+
+        # calculate the total length
+        length = np.sum(dists)
+
+        return length

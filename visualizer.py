@@ -38,8 +38,9 @@ class Visualizer:
         )
         self.ax.add_patch(self.drone_sprite)
 
-        # prepare a scatter plot object for trajectory visualization
+        # prepare scatter plots for trajectory visualization
         self.local_trajectory = self.ax.scatter(0, 0, marker='.', c='blue', s=2)
+        self.global_trajectory = self.ax.scatter(0, 0, marker='.', c='black', s=1)
         
         # connect click event to click handler
         self.fig.canvas.mpl_connect('button_press_event', self.on_click)
@@ -55,6 +56,10 @@ class Visualizer:
 
     def update_local_trajectory(self, points: np.ndarray):
         self.local_trajectory.set_offsets(points)
+        self.fig.canvas.draw_idle()
+
+    def update_global_trajectory(self, points: np.ndarray):
+        self.global_trajectory.set_offsets(points)
         self.fig.canvas.draw_idle()
 
     def on_click(self, event):

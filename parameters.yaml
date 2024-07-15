@@ -6,14 +6,14 @@ Ts: 0.1
 m: 2.4
 L: 0.2
 J: 1.0
-c: 100.0
+c: 10.0
 g: 9.81
 
 # weight matrices
-qx:       10.0
-qy:       12.0
-qvx:      4.0
-qvy:      12.0
-qtheta:   32.0
-qdtheta:  400.0
+qx:       200.0
+qy:       200.0
+qvx:      160.0
+qvy:      160.0
+qtheta:   100.0
+qdtheta:  60.0
 qu:       1.0
